@@ -1,0 +1,36 @@
+#!/bin/sh
+set -e
+
+EMAIL_REGEX="\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,6}\b"
+
+PII_FOUND=0
+EMAILS_FOUND=0
+
+CHANGED_FILES=$(git diff --staged --name-only)
+for FILE in $CHANGED_FILES; do
+    for EMAIL in $(git diff --staged $FILE | egrep "^\+" | cut -c 2- | egrep -o $EMAIL_REGEX); do
+        if [ $PII_FOUND -eq 0 ]; then
+            echo "WARNING: Possible PII found in staged changes"
+            echo "============================================="
+        fi
+        if [ $EMAILS_FOUND -eq 0 ]; then
+            echo "Email addresses:"
+        fi
+        PII_FOUND=$((PII_FOUND+1))
+        EMAILS_FOUND=$((EMAILS_FOUND+1))
+        echo "  $FILE: $EMAIL"
+    done
+done
+
+if [ "$PII_FOUND" -gt "0" ]; then
+    exec < /dev/tty
+    read -p "If you still want to commit these files, type \"toxic waste\":" TOXIC_WASTE
+    shopt -s nocasematch
+    if [[ "$TOXIC_WASTE" == "toxic waste" ]]; then
+        echo "Proceding with the commit."
+        exit 0
+    else
+        echo "Chickening out..."
+        exit 1
+    fi
+fi
